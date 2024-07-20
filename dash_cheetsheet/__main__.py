@@ -136,7 +136,11 @@ class Application:
                 dbc.Col(self.button_r2c1.obj, width=2),
                 dbc.Col(self.button_r2c2.obj, width=2),
             ]),
-        ])
+            dcc.Graph(
+                id='example-graph',
+                figure=go.Figure(),
+            )
+        ], style={'height': '100vh'})
         self.app.layout = container
 
     def setup_callback(self):
