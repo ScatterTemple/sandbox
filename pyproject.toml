@@ -19,6 +19,7 @@ babel = "^2.15.0"
 optuna-integration = "^3.6.0"
 numpy = "^1.26.2"
 fastapi = {extras = ["all"], version = "^0.111.1"}
+black = "^24.4.2"
 
 
 [build-system]
