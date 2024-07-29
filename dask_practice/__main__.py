@@ -5,6 +5,7 @@ import pandas as pd
 import random
 from time import sleep
 
+from fem import FEM
 from optimizer import Optimizer
 from history import History
 from parameter import ExpressionEvaluator
@@ -27,6 +28,9 @@ def add_worker(client, worker_name):
 
 
 def main():
+    # FEM クラスの準備
+    fem = FEM()
+
     # 計算用クラスの準備
     opt = Optimizer()
 
@@ -34,8 +38,8 @@ def main():
     evaluator = ExpressionEvaluator()
 
     # パラメータの追加
-    evaluator.add_variable("a", 2)
-    evaluator.add_variable("b", 3)
+    evaluator.add_parameter("a", 2)
+    evaluator.add_parameter("b", 3)
 
     # 式の追加（例：c = a + b, d = c * 2）
     evaluator.add_expression('c', lambda a, b: a + b)
@@ -63,12 +67,13 @@ def main():
     logger.info("記録用ワーカーを立ち上げます。")
     add_worker(client, "additional_worker")
 
-    # 記録アクターの起動
+    # 記録アクタークラスの起動
     history_future = client.submit(
         History,
         actor=True,
         workers="additional_worker",
         allow_other_workers=False,
+
     )
     history: History = history_future.result()
 

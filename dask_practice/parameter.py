@@ -1,16 +1,17 @@
 import inspect
+from collections import OrderedDict
 from graphlib import TopologicalSorter
 
 
 class ExpressionEvaluator:
     def __init__(self):
-        self.variables = {}
+        self.parameters = {}
         self.expressions = {}
         self.dependencies = {}
         self.evaluation_order = []
 
-    def add_variable(self, name, value):
-        self.variables[name] = value
+    def add_parameter(self, name, value):
+        self.parameters[name] = value
         self.dependencies[name] = set()
 
     def add_expression(self, name, fun):
@@ -30,13 +31,16 @@ class ExpressionEvaluator:
             if variable in self.expressions:
                 # 実行する
                 args = {
-                    param: self.variables[param]
+                    param: self.parameters[param]
                     for param in self.dependencies[variable]
                 }
-                self.variables[variable] = self.expressions[variable](**args)
+                self.parameters[variable] = self.expressions[variable](**args)
 
-    def get_value(self, name):
-        return self.variables.get(name, None)
+    def get_value(self, name) -> float:
+        return self.parameters.get(name, None)
+
+    def get_variables(self) -> dict:
+        return {name: self.get_value(name) for name in self.evaluation_order}
 
 
 if __name__ == "__main__":
@@ -44,8 +48,8 @@ if __name__ == "__main__":
     evaluator = ExpressionEvaluator()
 
     # 変数の追加
-    evaluator.add_variable("a", 2)
-    evaluator.add_variable("b", 3)
+    evaluator.add_parameter("a", 2)
+    evaluator.add_parameter("b", 3)
 
     # 式の追加（例：c = a + b, d = c * 2）
     evaluator.add_expression("c", lambda a, b: a + b)
@@ -63,8 +67,8 @@ if __name__ == "__main__":
     print(f"d = {evaluator.get_value('d')}")
 
     # 変数の更新
-    evaluator.add_variable("a", 4)
-    evaluator.add_variable("b", 5)
+    evaluator.add_parameter("a", 4)
+    evaluator.add_parameter("b", 5)
 
     # 評価
     evaluator.evaluate()
