@@ -20,6 +20,7 @@ optuna-integration = "^3.6.0"
 numpy = "^1.26.2"
 fastapi = {extras = ["all"], version = "^0.111.1"}
 black = "^24.4.2"
+dask = {extras = ["distributed"], version = "^2024.7.1"}
 
 
 [build-system]
