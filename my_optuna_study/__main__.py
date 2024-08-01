@@ -4,7 +4,7 @@ import optuna
 from optuna.distributions import FloatDistribution
 
 from my_optuna_study.core import History
-
+from optuna.integration import BoTorchSampler
 
 # create study
 str_time = datetime.datetime.now().strftime("%M%S")
