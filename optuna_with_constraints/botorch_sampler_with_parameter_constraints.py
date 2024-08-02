@@ -40,6 +40,7 @@ with try_import() as _imports:
     from botorch.models import SingleTaskGP
     from botorch.models.transforms.outcome import Standardize
     from botorch.optim import optimize_acqf
+    from botorch.optim.optimize import _optimize_acqf_sequential_q, OptimizeAcqfInputs
     from botorch.sampling import SobolQMCNormalSampler
     import botorch.version
 
@@ -374,6 +375,7 @@ def qehvi_candidates_func(
     train_con: Optional["torch.Tensor"],
     bounds: "torch.Tensor",
     pending_x: Optional["torch.Tensor"],
+    constraints_dict: dict,
 ) -> "torch.Tensor":
     """Quasi MC-based batch Expected Hypervolume Improvement (qEHVI).
 
@@ -446,15 +448,21 @@ def qehvi_candidates_func(
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    candidates, _ = optimize_acqf(
+    opt_inputs = OptimizeAcqfInputs(
         acq_function=acqf,
         bounds=standard_bounds,
         q=1,
         num_restarts=20,
         raw_samples=1024,
-        options={"batch_limit": 5, "maxiter": 200, "nonnegative": True},
+        options={"batch_limit": 1, "maxiter": 200, "nonnegative": True},
         sequential=True,
+        **constraints_dict,
+        fixed_features=None,
+        post_processing_func=None,
+        return_best_only=True,
     )
+
+    candidates, _ = _optimize_acqf_sequential_q(opt_inputs)
 
     candidates = unnormalize(candidates.detach(), bounds=bounds)
 
@@ -708,14 +716,18 @@ def _get_default_candidates_func(
     "torch.Tensor",
 ]:
     if n_objectives > 3 and not has_constraint and not consider_running_trials:
+        raise NotImplementedError
         return ehvi_candidates_func
     elif n_objectives > 3:
+        raise NotImplementedError
         return qparego_candidates_func
     elif n_objectives > 1:
         return qehvi_candidates_func
     elif consider_running_trials:
+        raise NotImplementedError
         return qei_candidates_func
     else:
+        raise NotImplementedError
         return logei_candidates_func
 
 
@@ -826,6 +838,8 @@ class BoTorchSampler(BaseSampler):
         self._study_id: Optional[int] = None
         self._search_space = IntersectionSearchSpace()
         self._device = device or torch.device("cpu")
+
+        self.constraints_function_dict = {}
 
     def infer_relative_search_space(
         self,
@@ -970,7 +984,12 @@ class BoTorchSampler(BaseSampler):
             # `SobolQMCNormalSampler`'s constructor has a `seed` argument, but its behavior is
             # deterministic when the BoTorch's seed is fixed.
             candidates = self._candidates_func(
-                completed_params, completed_values, con, bounds, running_params
+                completed_params,
+                completed_values,
+                con,
+                bounds,
+                running_params,
+                self.constraints_function_dict,
             )
             if self._seed is not None:
                 self._seed += 1
