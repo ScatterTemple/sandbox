@@ -40,7 +40,6 @@ with try_import() as _imports:
     from botorch.models import SingleTaskGP
     from botorch.models.transforms.outcome import Standardize
     from botorch.optim import optimize_acqf
-    from botorch.optim.optimize import _optimize_acqf_sequential_q, OptimizeAcqfInputs
     from botorch.sampling import SobolQMCNormalSampler
     import botorch.version
 
@@ -448,7 +447,7 @@ def qehvi_candidates_func(
     standard_bounds = torch.zeros_like(bounds)
     standard_bounds[1] = 1
 
-    opt_inputs = OptimizeAcqfInputs(
+    candidates, _ = optimize_acqf(
         acq_function=acqf,
         bounds=standard_bounds,
         q=1,
@@ -456,13 +455,9 @@ def qehvi_candidates_func(
         raw_samples=1024,
         options={"batch_limit": 1, "maxiter": 200, "nonnegative": True},
         sequential=True,
-        **constraints_dict,
-        fixed_features=None,
-        post_processing_func=None,
         return_best_only=True,
+        **constraints_dict,
     )
-
-    candidates, _ = _optimize_acqf_sequential_q(opt_inputs)
 
     candidates = unnormalize(candidates.detach(), bounds=bounds)
 
