@@ -1,19 +1,23 @@
-import numpy as np
-import optuna
-import torch
-from botorch_sampler_with_parameter_constraints import BoTorchSampler
-from botorch.optim.optimize import gen_candidates_scipy
-from botorch.optim.initializers import gen_batch_initial_conditions
-
-
 import warnings
+
+import numpy as np
+
+import optuna
+from optuna.integration.botorch import BoTorchSampler
+
+import torch
+from botorch.optim.initializers import gen_batch_initial_conditions
+from botorch.optim.optimize import gen_candidates_scipy
+
+from helper import NonOverwritablePartial
+
+import optuna_integration.botorch
+
 
 warnings.filterwarnings("ignore", category=optuna.exceptions.ExperimentalWarning)
 
 
-def get_sampler():
-
-    sampler = BoTorchSampler()
+def get_constraint_dict():
 
     inequality_constraints: "Optional[List[Tuple[Tensor, Tensor, float]]]" = None
     equality_constraints: "Optional[List[Tuple[Tensor, Tensor, float]]]" = None
@@ -31,10 +35,10 @@ def get_sampler():
     equality_constraints = [
         (
             (
-                indices := torch.tensor([0]).to(sampler._device)  # r
+                indices := torch.tensor([0])  # r
             ),  # 入力 prm のうち何番目の変数を使うかのインデックスのリスト。長さ L とする。
             (
-                coefficients := torch.tensor([1]).double().to(sampler._device)
+                coefficients := torch.tensor([1]).double()
             ),  # 入力 prm から indices で抽出された配列と内積を取る係数配列。長さ L でないとダメ。
             (rhs := 1.0),  # 内積がとるべき合計値。int。
         ),
@@ -42,17 +46,13 @@ def get_sampler():
 
     constraints_dict = dict(
         inequality_constraints=inequality_constraints,
-        equality_constraints=equality_constraints,
+        # equality_constraints=equality_constraints,
         nonlinear_inequality_constraints=nonlinear_inequality_constraints,
-        # batch_initial_conditions=torch.tensor([[[1, 0]]]).double(),
-        batch_initial_conditions=None,
         ic_generator=gen_batch_initial_conditions,
         gen_candidates=gen_candidates_scipy,
     )
 
-    sampler.constraints_function_dict = constraints_dict
-
-    return sampler
+    return constraints_dict
 
 
 def objective(trial: optuna.Trial):
@@ -64,11 +64,32 @@ def objective(trial: optuna.Trial):
 
 
 def ineq_cns(r, theta: torch.Tensor):
+    print()
+    print(np.pi - theta)
+    print(np.pi)
+    print(theta)
     return np.pi - theta  # theta <= np.pi is feasible
 
 
+def do_mock(constraints_dict):
+    original_fun = optuna_integration.botorch.optimize_acqf
+    overwritten_and_constrainted_fun = NonOverwritablePartial(
+        original_fun,
+        **dict(
+            options={"batch_limit": 1, "maxiter": 200, "nonnegative": True},
+            **constraints_dict,
+        ),
+    )
+    optuna_integration.botorch.optimize_acqf = overwritten_and_constrainted_fun
+
+
 if __name__ == "__main__":
-    sampler = get_sampler()
+
+    constraints_dict = get_constraint_dict()
+
+    do_mock(constraints_dict)
+
+    sampler = BoTorchSampler()
 
     study = optuna.create_study(sampler=sampler, directions=["minimize"] * 2)
 
