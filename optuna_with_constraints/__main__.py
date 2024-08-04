@@ -8,13 +8,7 @@ from optuna.integration.botorch import BoTorchSampler
 
 import torch
 from botorch.optim.initializers import gen_batch_initial_conditions
-from botorch.optim.optimize import (
-    gen_candidates_scipy,
-    _optimize_acqf_sequential_q,
-    OptimizeAcqfInputs,
-    gen_one_shot_hvkg_initial_conditions,
-    gen_one_shot_kg_initial_conditions,
-)
+from botorch.optim.optimize import gen_candidates_scipy
 from botorch.utils.transforms import unnormalize, normalize
 
 from helper import NonOverwritablePartial
@@ -118,31 +112,25 @@ def get_constraint_dict():
         *args,
         **kwargs,
     ):
-        if "study" in globals():
-            if len(study.best_trials) > 0:
-                # print(study.best_trials)
-                normalized_parameter_list = []
-                for _trial in study.best_trials:
-                    values = torch.tensor(list(_trial.params.values())).double()
-                    n_values = normalize(
-                        values, torch.tensor([[0, 0], [1, 2 * np.pi]]).double()
-                    )
-                    print(n_values)
-                    normalized_parameter_list.append([n_values.numpy()])
-                return torch.tensor(normalized_parameter_list).double()
-        print("init")
-        return (torch.tensor([[[0.5, 0.51]]]).double(),)  # normalised
+        if len(study.best_trials) > 0:
+            # print(study.best_trials)
+            normalized_parameter_list = []
+            for _trial in study.best_trials:
+                values = torch.tensor(list(_trial.params.values())).double()
+                n_values = normalize(
+                    values, torch.tensor([[0, 0], [1, 2 * np.pi]]).double()
+                )
+                normalized_parameter_list.append([n_values.numpy()])
+            return torch.tensor(normalized_parameter_list).double()
 
     constraints_dict = dict(
         # inequality_constraints=inequality_constraints,
         # equality_constraints=equality_constraints,
         nonlinear_inequality_constraints=nonlinear_inequality_constraints,
-        # ic_generator=gen_batch_initial_conditions,
-        # ic_generator=my_generator,
-        ic_generator=my_generator_2,
+        # ic_generator=gen_batch_initial_conditions,  # candidate が nonlinear 拘束を満たさない
+        # ic_generator=my_generator,  # 拘束を満たす candidate を出せない
+        ic_generator=my_generator_2,  # 結局なんでもよく、SLSQP でさえなければよい。一応、best_trials から選べばよい。
         # batch_initial_conditions=torch.tensor([[[0.5, 0.51]]]).double(),  # normalised
-        sequential=True,
-        # gen_candidates=gen_candidates_scipy,
     )
     return constraints_dict
 
