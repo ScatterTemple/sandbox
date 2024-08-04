@@ -15,7 +15,7 @@ from botorch.optim.optimize import (
     gen_one_shot_hvkg_initial_conditions,
     gen_one_shot_kg_initial_conditions,
 )
-from botorch.utils.transforms import unnormalize
+from botorch.utils.transforms import unnormalize, normalize
 
 from helper import NonOverwritablePartial
 
@@ -77,7 +77,9 @@ def get_constraint_dict():
                     print(
                         'raise RuntimeError("拘束を満たす初期値が見つかりませんでした。")'
                     )
-                    batch_initial_conditions_filterd = torch.tensor([[[0.5, 0.75]]])  # 本当はここ、前に成功したところにしたくない？ detaministic なので...
+                    batch_initial_conditions_filterd = torch.tensor(
+                        [[[0.5, 0.75]]]
+                    )  # 本当はここ、前に成功したところにしたくない？ detaministic なので...
                     # from optuna.exceptions import TrialPruned
                     # raise TrialPruned
                 else:
@@ -112,18 +114,36 @@ def get_constraint_dict():
 
         return batch_initial_conditions_filterd
 
+    def my_generator_2(
+        *args,
+        **kwargs,
+    ):
+        if "study" in globals():
+            if len(study.best_trials) > 0:
+                # print(study.best_trials)
+                normalized_parameter_list = []
+                for _trial in study.best_trials:
+                    values = torch.tensor(list(_trial.params.values())).double()
+                    n_values = normalize(
+                        values, torch.tensor([[0, 0], [1, 2 * np.pi]]).double()
+                    )
+                    print(n_values)
+                    normalized_parameter_list.append([n_values.numpy()])
+                return torch.tensor(normalized_parameter_list).double()
+        print("init")
+        return (torch.tensor([[[0.5, 0.51]]]).double(),)  # normalised
+
     constraints_dict = dict(
         # inequality_constraints=inequality_constraints,
         # equality_constraints=equality_constraints,
         nonlinear_inequality_constraints=nonlinear_inequality_constraints,
         # ic_generator=gen_batch_initial_conditions,
         # ic_generator=my_generator,
-        # ic_generator=my_generator_2,
-        batch_initial_conditions=torch.tensor([[[0.5, 0.51]]]).double(),  # normalised
+        ic_generator=my_generator_2,
+        # batch_initial_conditions=torch.tensor([[[0.5, 0.51]]]).double(),  # normalised
         sequential=True,
         # gen_candidates=gen_candidates_scipy,
     )
-
     return constraints_dict
 
 
@@ -132,12 +152,12 @@ def objective(trial: optuna.Trial):
     theta = trial.suggest_float("theta", 0, 2 * np.pi)
     x = r * np.cos(theta)
     y = r * np.sin(theta)
-    return y,
+    return x, y
 
 
 def ineq_cns(r, theta: torch.Tensor):
     # print(r, theta)
-    return - np.pi + theta  # theta >= np.pi is feasible
+    return -np.pi + theta  # theta >= np.pi is feasible
 
 
 def do_mock(constraints_dict):
@@ -149,7 +169,7 @@ def do_mock(constraints_dict):
     options.update(
         dict(  # options for gen_candidates_scipy()
             # method='SLSQP',
-            method='COBYLA',  # dict 形式の constraints を扱えるのは SLSQP か COBYLA しかない
+            method="COBYLA",  # dict 形式の constraints を扱えるのは SLSQP か COBYLA しかない
             # with_grad=None,  # dont use grad(SLSQP では jac が ゼロになって即終了することがある...が、botorch の実装が with_grad 前提なのでここは変えられない（文法エラーになる）
             # disp=True,
         )
@@ -181,7 +201,9 @@ if __name__ == "__main__":
 
     sampler = BoTorchSampler(independent_sampler=None, n_startup_trials=0)
 
-    study = optuna.create_study(sampler=sampler, directions=["minimize"] * 1)
+    study = optuna.create_study(sampler=sampler, directions=["minimize"] * 2)
+
+    study.enqueue_trial(dict(r=0.5, theta=np.pi+0.1))
 
     study.optimize(
         objective,
